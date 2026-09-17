@@ -1,0 +1,75 @@
+/* Odoo Atlas — chart tokens.
+   The metaphor is a nautical chart: deep water field, buff "paper" ink for text,
+   one magenta "notice" colour reserved for the thing you are looking at and for
+   the RPC seam between shores. Node types are muted chart-symbol hues. */
+
+:root {
+  /* water */
+  --sea: #0f1d2b;
+  --sea-2: #132435;
+  --sea-3: #182c40;
+  --sea-line: #24384d;
+  --sea-line-2: #31485f;
+
+  /* ink */
+  --paper: #e9dfc7;
+  --paper-2: #c6bda8;
+  --paper-dim: #8f9caa;
+  --paper-faint: #5e6d7d;
+
+  /* notice */
+  --notice: #e24b8a;
+  --notice-soft: rgba(226, 75, 138, 0.18);
+
+  /* node types */
+  --c-module: #c9a45b;
+  --c-model: #5fb49c;
+  --c-field: #7fb6d9;
+  --c-method: #e0b15a;
+  --c-route: #d96c6c;
+  --c-view: #b7c77c;
+  --c-action: #e19a6b;
+  --c-template: #a3b1c2;
+  --c-component: #8fa3f5;
+  --c-jsclass: #7d8fd6;
+  --c-service: #d98cb3;
+  --c-registry: #c5a6e8;
+  --c-hook: #79c6c0;
+
+  /* type */
+  --f-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+  --f-ui: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-eyebrow: 10.5px;
+  --fs-small: 12px;
+  --fs-body: 13.5px;
+  --fs-lead: 15px;
+  --fs-h2: 20px;
+  --fs-h1: 28px;
+
+  --track: 0.14em;
+
+  /* geometry */
+  --r-1: 3px;
+  --r-2: 6px;
+  --r-3: 10px;
+  --topbar: 52px;
+  --inspector: 440px;
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 140ms;
+  --t-med: 260ms;
+  --t-slow: 420ms;
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+    --t-slow: 0ms;
+  }
+}

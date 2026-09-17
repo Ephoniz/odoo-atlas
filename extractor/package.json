@@ -1,0 +1,11 @@
+{
+  "name": "odoo-atlas-extractor",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "JS/OWL side of the Odoo Atlas extractor",
+  "dependencies": {
+    "@babel/parser": "^7.26.0",
+    "@babel/traverse": "^7.26.0"
+  }
+}
