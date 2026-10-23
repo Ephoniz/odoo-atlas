@@ -3,6 +3,7 @@ import { detailOf, useAtlas } from "../data/store";
 import { FAMILY_LABEL, kindMeta, typeMeta, type KindMeta } from "../data/kinds";
 import type { AtlasNode, EdgeGroup } from "../data/types";
 import { Source } from "./Source";
+import { breakable } from "../graph/AtlasNode";
 
 function ghBase(): string {
   const v = useAtlas.getState().meta?.version;
@@ -427,7 +428,7 @@ function LinkList({ title, ids, labels, limit = 12 }: { title?: string; ids: str
           <li key={id}>
             <button onClick={() => setFocus(id, { keep: true })} style={{ ["--sw" as string]: `var(${typeMeta(n!.t).color})` }}>
               <i className="sw" />
-              <span>{n!.t === "field" || n!.t === "method" ? <><span style={{ color: "var(--paper-faint)" }}>{n!.model as string}.</span>{n!.n}</> : n!.n}</span>
+              <span className="nm">{n!.t === "field" || n!.t === "method" ? <><span style={{ color: "var(--paper-faint)" }}>{n!.model as string}.</span><wbr />{breakable(n!.n)}</> : breakable(n!.n)}</span>
               {n!.m && n!.t !== "module" ? <span className="mod">{n!.m}</span> : null}
               {label ? <span className="lbl">{label}</span> : null}
             </button>

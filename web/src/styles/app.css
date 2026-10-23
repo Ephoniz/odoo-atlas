@@ -397,7 +397,7 @@ code,
   z-index: 5;
   right: 16px;
   top: 14px;
-  max-width: 320px;
+  max-width: 380px;
   padding: 8px 12px;
   border: 1px solid var(--sea-line);
   border-radius: var(--r-2);
@@ -466,6 +466,16 @@ code,
 .node.is-ghost {
   border-style: dashed;
   background: transparent;
+}
+
+.node.is-pill {
+  width: 150px;
+  padding: 6px 10px 6px 12px;
+}
+
+.node.is-pill::before {
+  top: 6px;
+  bottom: 6px;
 }
 
 .node.is-focus {
@@ -806,7 +816,7 @@ code,
 }
 
 .insp-body {
-  overflow: auto;
+  overflow: hidden auto;
   padding: 14px 20px 32px;
   min-height: 0;
   scrollbar-width: thin;
@@ -893,7 +903,13 @@ code,
   max-width: 45%;
 }
 
+.linklist .nm {
+  min-width: 0;
+  overflow-wrap: break-word; /* only splits mid-word when no <wbr> joint fits */
+}
+
 .linklist .mod {
+  flex: none;
   color: var(--paper-faint);
   font-size: 10.5px;
 }

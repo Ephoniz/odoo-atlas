@@ -10,6 +10,8 @@ export interface AtlasNodeData extends Record<string, unknown> {
   dim: boolean;
   hover: boolean;
   dir: Direction;
+  /** Name-only rendering for the galaxy, where 25+ modules share one screen. */
+  pill?: boolean;
   fields?: { n: string; ftype: string }[];
 }
 
@@ -28,7 +30,7 @@ function splitName(node: N): { prefix?: string; name: string } {
 }
 
 /** Insert soft break opportunities after `_`, `.`, `/` and before camelCase humps so long identifiers wrap at joints, not mid-word. */
-function breakable(s: string) {
+export function breakable(s: string) {
   const parts = s.split(/(?<=[_./])|(?<=[a-z0-9])(?=[A-Z])/);
   if (parts.length === 1) return s;
   return parts.map((p, i) => <span key={i}>{p}<wbr /></span>);
@@ -59,8 +61,18 @@ function subtitle(node: N): string | null {
 }
 
 export const AtlasNode = memo(function AtlasNode({ data }: NodeProps<AtlasFlowNode>) {
-  const { node, focus, dim, hover, dir, fields } = data;
+  const { node, focus, dim, hover, dir, fields, pill } = data;
   const tm = typeMeta(node.t);
+  if (pill) {
+    const cls = ["node", "is-pill", dim && "is-dim", hover && "is-hover", (node.ghost || node.external) && "is-ghost"].filter(Boolean).join(" ");
+    return (
+      <div className={cls} style={{ ["--accent" as string]: `var(${tm.color})` }} role="button" tabIndex={0} aria-label={`${tm.label} ${node.n}`} title={(node.title as string) ?? node.n}>
+        <Handle type="target" position={dir === "RIGHT" ? Position.Left : Position.Top} />
+        <Handle type="source" position={dir === "RIGHT" ? Position.Right : Position.Bottom} />
+        <div className="name">{breakable(node.n)}</div>
+      </div>
+    );
+  }
   const { prefix, name } = splitName(node);
   const sub = subtitle(node);
   const layers = (node.layers as string[] | undefined) ?? [];

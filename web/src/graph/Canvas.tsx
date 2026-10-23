@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   MiniMap,
   ReactFlow,
@@ -26,7 +27,7 @@ type FlowNode = AtlasFlowNode | LabelFlowNode;
 
 function Inner() {
   const st = useAtlas();
-  const { fitBounds } = useReactFlow();
+  const { setViewport } = useReactFlow();
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [labels, setLabels] = useState<GroupLabel[]>([]);
   // Nodes are derived from the store, so React Flow can't write back into them.
@@ -34,6 +35,10 @@ function Inner() {
   // the minimap needs `measured`, and drags would otherwise snap back.
   const [measured, setMeasured] = useState<Map<string, { width: number; height: number }>>(new Map());
   const [dragged, setDragged] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const measuredRef = useRef(measured);
+  const [relayout, setRelayout] = useState(0);
+  // The minimap only earns its corner when the chart is bigger than the screen.
+  const [overflowing, setOverflowing] = useState(false);
   const layoutKey = useRef("");
   const sizeRef = useRef<Map<string, { width: number; height: number }>>(new Map());
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -105,8 +110,11 @@ function Inner() {
         fields: isFocus ? (focusFields?.length ?? 0) : 0,
         chips: isFocus && Array.isArray(n.services) ? (n.services as string[]).length : 0,
         sub: true,
+        pill: isPill(st.lens, n.t, isFocus) ? n.n : undefined,
       });
-      return { id, ...s };
+      // Wrapped names make real nodes taller than the estimate; trust the DOM once it has spoken.
+      const m = measuredRef.current.get(id);
+      return { id, width: s.width, height: m && Math.abs(m.width - s.width) < 2 ? m.height : s.height };
     });
     sizeRef.current = new Map(sizes.map((s) => [s.id, { width: s.width, height: s.height }]));
     const primary = edges.filter((e) => e.data!.primary);
@@ -125,29 +133,86 @@ function Inner() {
     }).catch((err: unknown) => {
       console.error("[atlas] layout failed", err);
     });
-  }, [st.visible, st.focus, st.lens, edges, dir, focusFields, st.nodes]);
+  }, [st.visible, st.focus, st.lens, edges, dir, focusFields, st.nodes, relayout]);
+
+  // If a rendered node turned out noticeably taller/shorter than planned, lay out again.
+  useEffect(() => {
+    measuredRef.current = measured;
+    for (const [id, s] of sizeRef.current) {
+      const m = measured.get(id);
+      if (m && Math.abs(m.width - s.width) < 2 && Math.abs(m.height - s.height) > 4) {
+        layoutKey.current = "";
+        setRelayout((x) => x + 1);
+        return;
+      }
+    }
+  }, [measured]);
 
   // Fit to the freshly computed positions (not to React Flow's possibly stale measurements).
-  useEffect(() => {
-    if (positions.size === 0) return;
+  const fit = useCallback((animate: boolean) => {
+    const el = canvasRef.current;
+    if (!el || positions.size === 0) return;
+    const sizeOf = (id: string) => sizeRef.current.get(id) ?? { width: 210, height: 60 };
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const [id, p] of positions) {
-      const s = sizeRef.current.get(id) ?? { width: 210, height: 60 };
+      if (!visibleSet.has(id)) continue;
+      const s = sizeOf(id);
       x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
       x1 = Math.max(x1, p.x + s.width); y1 = Math.max(y1, p.y + s.height);
     }
-    let w = x1 - x0 + 80, h = y1 - y0 + 80;
-    // Never zoom past 1:1 — small charts should sit comfortably, not loom.
-    const el = canvasRef.current;
-    if (el) {
-      const zoom = Math.min((el.clientWidth - 260) / w, (el.clientHeight - 140) / h, 1); // leave room for legend / trail
-      w = el.clientWidth / zoom; h = el.clientHeight / zoom;
+    if (!Number.isFinite(x0)) return;
+    const W = el.clientWidth, H = el.clientHeight;
+    // The legend spans the bottom-left corner; keep the chart above it rather than under it.
+    const legend = el.querySelector<HTMLElement>(".legend")?.offsetHeight ?? 0;
+    const bottom = Math.max(FIT_PAD.bottom, legend + 28);
+    // Likewise the caption hangs from the top-right corner.
+    const caption = el.querySelector<HTMLElement>(".caption");
+    const top = Math.max(FIT_PAD.top, caption ? caption.offsetTop + caption.offsetHeight + 16 : 0);
+    const availW = W - 2 * FIT_PAD.x, availH = H - top - bottom;
+    // Never past 1:1 (small charts shouldn't loom), never below readable (big ones pan instead).
+    const floor = st.lens === "galaxy" ? MIN_ZOOM.galaxy : MIN_ZOOM.other;
+    const fitZoom = Math.min(availW / (x1 - x0), availH / (y1 - y0), 1);
+    const zoom = Math.max(fitZoom, floor);
+    setOverflowing(fitZoom < floor);
+    let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    // When the chart overflows, slide the window so the focus stays fully in view.
+    const fp = st.focus ? positions.get(st.focus) : undefined;
+    if (fp) {
+      const fs = sizeOf(st.focus!);
+      const halfW = availW / 2 / zoom, halfH = availH / 2 / zoom;
+      cx = Math.min(Math.max(cx, fp.x + fs.width - halfW), fp.x + halfW);
+      cy = Math.min(Math.max(cy, fp.y + fs.height - halfH), fp.y + halfH);
     }
-    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    const reduce = document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = setTimeout(() => fitBounds({ x: cx - w / 2, y: cy - h / 2, width: w, height: h }, { duration: reduce ? 0 : 450 }), 20);
+    const reduce = !animate || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    void setViewport(
+      { x: FIT_PAD.x + availW / 2 - cx * zoom, y: top + availH / 2 - cy * zoom, zoom },
+      { duration: reduce ? 0 : 450 },
+    );
+  }, [positions, visibleSet, st.focus, st.lens, setViewport]);
+
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+
+  useEffect(() => {
+    const t = setTimeout(() => fitRef.current(true), 20);
     return () => clearTimeout(t);
-  }, [positions, fitBounds]);
+  }, [positions]);
+
+  // Re-fit when the canvas changes size (window resize, inspector opening/closing).
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    let raf = 0, last = `${el.clientWidth}x${el.clientHeight}`;
+    const ro = new ResizeObserver(() => {
+      const now = `${el.clientWidth}x${el.clientHeight}`;
+      if (now === last) return;
+      last = now;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => fitRef.current(false));
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  }, []);
 
   const hoverNeighbours = useMemo(() => {
     if (!st.hover || !visibleSet.has(st.hover)) return null;
@@ -160,12 +225,14 @@ function Inner() {
   const nodes: FlowNode[] = useMemo(() => {
     const main: FlowNode[] = st.visible.map((id) => {
       const n = st.nodes.get(id)!;
-      const p = dragged.get(id) ?? positions.get(id) ?? { x: 0, y: 0 };
+      const p = dragged.get(id) ?? positions.get(id);
       const isFocus = id === st.focus;
       return {
-        id, type: "atlas" as const, position: p, measured: measured.get(id),
+        id, type: "atlas" as const, position: p ?? { x: 0, y: 0 }, measured: measured.get(id),
+        // Until the (async) layout places it, a new node would flash at the origin.
+        hidden: !p,
         data: {
-          node: n, focus: isFocus, dir,
+          node: n, focus: isFocus, dir, pill: isPill(st.lens, n.t, isFocus),
           dim: !!hoverNeighbours && !hoverNeighbours.has(id),
           hover: st.hover === id,
           fields: isFocus ? focusFields : undefined,
@@ -177,7 +244,7 @@ function Inner() {
       main.push({ id: l.id, type: "label", position: { x: l.x, y: l.y }, measured: measured.get(l.id), data: { kind: l.kind, dir: l.dir, count: l.count }, draggable: false, selectable: false, focusable: false });
     }
     return main;
-  }, [st.visible, st.nodes, positions, dragged, measured, labels, st.focus, st.hover, hoverNeighbours, dir, focusFields]);
+  }, [st.visible, st.nodes, st.lens, positions, dragged, measured, labels, st.focus, st.hover, hoverNeighbours, dir, focusFields]);
 
   const onNodesChange: OnNodesChange<FlowNode> = useCallback((changes) => {
     let m: Map<string, { width: number; height: number }> | null = null;
@@ -237,8 +304,14 @@ function Inner() {
         defaultEdgeOptions={{ type: "atlas" }}
       >
         <Background variant={BackgroundVariant.Dots} gap={28} size={1} color="rgba(233,223,199,0.06)" />
-        <Controls showInteractive={false} position="bottom-right" />
-        <MiniMap
+        <Controls showInteractive={false} showFitView={false} position="bottom-right">
+          <ControlButton onClick={() => fit(true)} title="Fit the chart" aria-label="Fit the chart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </ControlButton>
+        </Controls>
+        {overflowing ? <MiniMap
           position="bottom-right"
           style={{ bottom: 120, width: 160, height: 100 }}
           pannable
@@ -247,7 +320,7 @@ function Inner() {
           nodeStrokeWidth={0}
           nodeBorderRadius={2}
           maskColor="rgba(15,29,43,0.7)"
-        />
+        /> : null}
       </ReactFlow>
       <Trail />
       <Legend />
@@ -257,6 +330,15 @@ function Inner() {
 }
 
 const rank = kindRank;
+
+function isPill(lens: string, type: string, focus: boolean): boolean {
+  return lens === "galaxy" && type === "module" && !focus;
+}
+
+/** Chrome floating over the canvas: trail + caption on top, legend bottom-left, controls bottom-right. */
+const FIT_PAD = { x: 40, top: 76, bottom: 40 };
+/** Below this, 12.5px node text drops under ~9px. The galaxy is an overview map, so it may go further. */
+const MIN_ZOOM = { galaxy: 0.5, other: 0.72 };
 
 /** SVG `fill` attributes don't resolve `var()`, so read the token off :root once. */
 const colorCache = new Map<string, string>();

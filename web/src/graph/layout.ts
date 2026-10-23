@@ -115,7 +115,7 @@ export function fanLayout(
   out.sort(byGroup);
   inn.sort(byGroup);
 
-  const GAP = 12, GROUP_GAP = 40, COL_GAP = 48, FOCUS_GAP = 150, LABEL_H = 18;
+  const GAP = 12, GROUP_GAP = 40, COL_GAP = 36, FOCUS_GAP = 112, LABEL_H = 18;
 
   const place = (ids: string[], dir: 1 | -1) => {
     if (!ids.length) return;
@@ -181,7 +181,12 @@ export function fanLayout(
 }
 
 /** Rough box size so ELK can reserve space before the DOM measures the node. */
-export function estimateSize(opts: { focus: boolean; type: string; layers: number; fields: number; chips: number; sub: boolean }): { width: number; height: number } {
+export function estimateSize(opts: { focus: boolean; type: string; layers: number; fields: number; chips: number; sub: boolean; pill?: string }): { width: number; height: number } {
+  if (opts.pill !== undefined) {
+    // 12.5px mono ≈ 7.6px per glyph over a 126px text box
+    const lines = Math.max(1, Math.ceil((opts.pill.length * 7.6) / 126));
+    return { width: 150, height: 14 + lines * 16 };
+  }
   if (!opts.focus) {
     return { width: 210, height: (opts.sub ? 62 : 46) + (opts.layers > 1 ? 15 : 0) };
   }
