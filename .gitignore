@@ -7,3 +7,4 @@ __pycache__/
 web/public/data/
 extractor/.cache/
 .DS_Store
+*.tsbuildinfo

@@ -13,7 +13,7 @@ export function TopBar() {
     <header className="topbar">
       <div className="wordmark">
         <span>Odoo Atlas</span>
-        {version ? <span className="version">{version === "unknown" ? "19.0" : version}</span> : null}
+        {version && version !== "unknown" ? <span className="version">{version}</span> : null}
       </div>
       <nav className="lenses" role="tablist" aria-label="Lenses">
         {ORDER.map((l, i) => (

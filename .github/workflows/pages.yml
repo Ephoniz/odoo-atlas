@@ -1,0 +1,78 @@
+name: Build and deploy the atlas
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      odoo_branch:
+        description: "odoo/odoo branch to chart"
+        default: "19.0"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  ODOO_BRANCH: ${{ inputs.odoo_branch || '19.0' }}
+  ODOO_PATHS: >-
+    odoo/addons/base
+    addons/web addons/bus addons/web_tour addons/mail addons/uom addons/analytic
+    addons/portal addons/product addons/account addons/payment addons/account_payment
+    addons/sales_team addons/utm addons/sale addons/sale_stock addons/stock
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            extractor/package-lock.json
+            web/package-lock.json
+
+      - name: Fetch Odoo source (sparse)
+        run: |
+          git clone --filter=blob:none --no-checkout --depth 1 --branch "$ODOO_BRANCH" https://github.com/odoo/odoo.git vendor/odoo
+          git -C vendor/odoo sparse-checkout set $ODOO_PATHS
+          git -C vendor/odoo checkout "$ODOO_BRANCH"
+
+      - name: Extract the graph
+        run: |
+          npm ci --prefix extractor
+          python -m extractor --odoo vendor/odoo --out web/public/data --version "$ODOO_BRANCH"
+
+      - name: Build the site
+        working-directory: web
+        env:
+          ATLAS_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

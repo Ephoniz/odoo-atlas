@@ -2,7 +2,9 @@ import { create } from "zustand";
 import type { AtlasEdge, AtlasNode, EdgeGroup, Lens, Meta } from "./types";
 import { defaultGroups, homeLens, lensFits, LENS_META } from "./neighbourhood";
 
-const DATA = "/data";
+// BASE_URL is "/" locally and "/<repo>/" on GitHub Pages.
+const DATA = `${import.meta.env.BASE_URL}data`;
+let loading: Promise<void> | null = null;
 const HARD_CAP = 220;
 let dataVersion = "";
 
@@ -28,6 +30,7 @@ export interface AtlasState {
   hiddenKinds: Set<string>;
 
   load: () => Promise<void>;
+  loadOnce: () => Promise<void>;
   setLens: (lens: Lens) => void;
   setFocus: (id: string, opts?: { keep?: boolean; lens?: Lens }) => void;
   toggleGroup: (nodeId: string, dir: "out" | "in", kind: string) => void;
@@ -62,7 +65,13 @@ export const useAtlas = create<AtlasState>((set, get) => ({
   paletteOpen: false,
   hiddenKinds: new Set(),
 
-  async load() {
+  load() {
+    // StrictMode mounts effects twice in dev; fetch the 7 MB of data once.
+    loading ??= get().loadOnce();
+    return loading;
+  },
+
+  async loadOnce() {
     try {
       set({ progress: "Loading index…" });
       const meta = (await fetch(`${DATA}/meta.json`, { cache: "no-cache" }).then((r) => r.json())) as Meta;

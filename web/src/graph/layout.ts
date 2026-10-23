@@ -1,7 +1,12 @@
-import ELK, { type ElkNode, type ElkExtendedEdge } from "elkjs/lib/elk.bundled.js";
+import type { ElkNode, ElkExtendedEdge } from "elkjs/lib/elk.bundled.js";
 import type { Lens } from "../data/types";
 
-const elk = new ELK();
+// ELK is ~1.4 MB and only the galaxy needs it, so it loads on first use.
+let elk: Promise<{ layout: (g: ElkNode) => Promise<ElkNode> }> | null = null;
+function getElk() {
+  elk ??= import("elkjs/lib/elk.bundled.js").then((m) => new m.default());
+  return elk;
+}
 
 export interface LayoutInput {
   id: string;
@@ -48,7 +53,7 @@ export async function layout(
       .filter((e) => ids.has(e.source) && ids.has(e.target) && e.source !== e.target)
       .map<ElkExtendedEdge>((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
   };
-  const res = await elk.layout(graph);
+  const res = await (await getElk()).layout(graph);
   const out = new Map<string, { x: number; y: number }>();
   for (const c of res.children ?? []) out.set(c.id, { x: c.x ?? 0, y: c.y ?? 0 });
   return out;

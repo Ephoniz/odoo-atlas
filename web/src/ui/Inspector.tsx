@@ -4,7 +4,10 @@ import { FAMILY_LABEL, kindMeta, typeMeta, type KindMeta } from "../data/kinds";
 import type { AtlasNode, EdgeGroup } from "../data/types";
 import { Source } from "./Source";
 
-const GH = "https://github.com/odoo/odoo/blob/19.0/";
+function ghBase(): string {
+  const v = useAtlas.getState().meta?.version;
+  return `https://github.com/odoo/odoo/blob/${v && v !== "unknown" ? v : "master"}/`;
+}
 type Tab = "overview" | "relations" | "source" | "strata";
 
 export function Inspector() {
@@ -160,7 +163,7 @@ function Overview({ node, detail, loading, groups }: { node: AtlasNode; detail?:
       {(file || firstLayerFile) ? (
         <div className="srcbar">
           <span>{file ?? firstLayerFile}{line ? `:${line}` : ""}</span>
-          <a href={`${GH}${file ?? firstLayerFile}${line ? `#L${line}` : ""}`} target="_blank" rel="noreferrer">open on GitHub ↗</a>
+          <a href={`${ghBase()}${file ?? firstLayerFile}${line ? `#L${line}` : ""}`} target="_blank" rel="noreferrer">open on GitHub ↗</a>
         </div>
       ) : null}
       {loading && !detail ? <p className="doc">Sounding…</p> : null}
@@ -500,7 +503,7 @@ function SourceTab({ node, detail, loading }: { node: AtlasNode; detail?: Record
         <div className="srcbar">
           <span>{l.file as string}:{l.line as number}</span>
           {l.super ? <span className="chip">calls super()</span> : <span className="chip">no super()</span>}
-          <a href={`${GH}${l.file as string}#L${l.line as number}`} target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href={`${ghBase()}${l.file as string}#L${l.line as number}`} target="_blank" rel="noreferrer">GitHub ↗</a>
         </div>
         <Source code={l.source as string} lang="py" />
       </>
@@ -509,7 +512,7 @@ function SourceTab({ node, detail, loading }: { node: AtlasNode; detail?: Record
   if (detail.arch) {
     return (
       <>
-        <div className="srcbar"><span>{detail.file as string}</span><a href={`${GH}${detail.file as string}`} target="_blank" rel="noreferrer">GitHub ↗</a></div>
+        <div className="srcbar"><span>{detail.file as string}</span><a href={`${ghBase()}${detail.file as string}`} target="_blank" rel="noreferrer">GitHub ↗</a></div>
         <Source code={detail.arch as string} lang="xml" dedent={false} />
       </>
     );
@@ -520,7 +523,7 @@ function SourceTab({ node, detail, loading }: { node: AtlasNode; detail?: Record
       <>
         <div className="srcbar">
           <span>{detail.file as string}{detail.line ? `:${detail.line as number}` : ""}</span>
-          <a href={`${GH}${detail.file as string}${detail.line ? `#L${detail.line as number}` : ""}`} target="_blank" rel="noreferrer">GitHub ↗</a>
+          <a href={`${ghBase()}${detail.file as string}${detail.line ? `#L${detail.line as number}` : ""}`} target="_blank" rel="noreferrer">GitHub ↗</a>
         </div>
         <Source code={detail.source as string} lang={lang} />
       </>

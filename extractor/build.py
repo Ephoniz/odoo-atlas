@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from collections import Counter
@@ -102,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="odoo-atlas-extract")
     ap.add_argument("--odoo", required=True, type=Path, help="path to an odoo/odoo checkout")
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--version", default=None, help="label, e.g. 19.0 (default: read from odoo/release.py)")
+    ap.add_argument("--version", default=None, help="label, e.g. 19.0 (default: odoo/release.py, then the checkout's branch)")
     ap.add_argument("--only", default=None, help="comma-separated addon names to restrict to")
     ap.add_argument("--no-js", action="store_true")
     args = ap.parse_args(argv)
@@ -163,6 +164,14 @@ def _read_version(odoo_root: Path) -> str:
                     return f"{v[0]}.{v[1]}" if isinstance(v, tuple) else str(v)
                 except Exception:
                     pass
+    # Sparse checkouts often skip odoo/release.py; the branch name (19.0, saas-18.4) is the next best label.
+    head = odoo_root / ".git" / "HEAD"
+    if head.is_file():
+        ref = head.read_text(encoding="utf-8").strip()
+        if ref.startswith("ref: refs/heads/"):
+            branch = ref.removeprefix("ref: refs/heads/")
+            if re.fullmatch(r"(saas-)?\d+\.\d+", branch):
+                return branch
     return "unknown"
 
 
